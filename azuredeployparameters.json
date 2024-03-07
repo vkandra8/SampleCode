@@ -1,0 +1,15 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "functionAppName": {
+            "value": "ARMFunctionapp321"
+        },
+        "location": {
+            "value": "East US"
+        },
+        "serverFarmResourceId": {
+            "value": "/subscriptions/b76d7a42-dc37-4003-b086-3b532c59eca5/resourceGroups/RG_TSP_DEVOPS_POC_SEA/providers/Microsoft.Web/serverfarms/ASP-RGTSPDEVOPSPOCSEA-93e4"
+        }
+    }
+}
