@@ -1,0 +1,35 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "functionAppName": {
+            "type": "string",
+            "defaultValue": "ARMFunctionapp321"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "East US"
+        },
+        "serverFarmResourceId": {
+            "type": "string",
+            "defaultValue": "/subscriptions/b76d7a42-dc37-4003-b086-3b532c59eca5/resourceGroups/RG_TSP_DEVOPS_POC_SEA/providers/Microsoft.Web/serverfarms/ASP-RGTSPDEVOPSPOCSEA-93e4"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-04-01",
+            "name": "[parameters('functionAppName')]",
+            "location": "[parameters('location')]",
+            "kind": "functionapp,linux",
+            "properties": {
+                "serverFarmId": "[parameters('serverFarmResourceId')]",
+                "reserved": true,
+                "siteConfig": {
+                    "linuxFxVersion": "Python|3.9",
+                    "functionAppScaleLimit": 200
+                }
+            }
+        }
+    ]
+}
