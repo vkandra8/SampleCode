@@ -1,0 +1,307 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  azureServiceConnection: 'arm-deploy-dev'
+  AZURE_SUBSCRIPTION_ID: 'de74bb0b-6a1d-4114-a9df-03bbc457ecf8'
+  resourceGroupName: 'Power-Platform'
+  location: 'UK South'
+  templateFile: 'arm-templates/template.json'
+  parametersFile: 'arm-templates/parameters.json'
+  deploymentName: 'full-deployment'
+  functionAppName: 'trishafunctionapp'
+  apiManagementName: 'trishaapim'
+  buildConfiguration: 'Release'
+  outputFolder: '$(Build.ArtifactStagingDirectory)/publish_output'
+  zipFile: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
+  apiId: 'sample-api'
+  apiPath: 'sample'
+  apiDisplayName: 'Sample API'
+  apiServiceUrl: 'https://trishafunctionapp.azurewebsites.net/api'
+  apiProtocols: 'https'
+  operationId: 'greet'
+  operationDisplayName: 'Greet'
+  operationMethod: 'GET'
+  operationUrlTemplate: '/greet'
+  productToAssociate: 'Sample Product' # or your custom product
+  # apimSubscriptionKey: '...' # Store securely in Azure DevOps if you want to use health check
+
+stages:
+- stage: Build
+  displayName: 'Build and Package Function App'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build .NET 8 Function App'
+    steps:
+    - checkout: self
+
+    - task: UseDotNet@2
+      displayName: 'Install .NET 8 SDK'
+      inputs:
+        packageType: 'sdk'
+        version: '8.0.100'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet Packages'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Project'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration)'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish Project'
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(outputFolder)'
+
+    - task: ArchiveFiles@2
+      displayName: 'Create Zip Package'
+      inputs:
+        rootFolderOrFile: '$(outputFolder)'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(zipFile)'
+        replaceExistingArchive: true
+
+    - publish: '$(zipFile)'
+      artifact: drop
+
+- stage: DeployInfrastructure
+  displayName: 'Deploy Azure Infrastructure'
+  dependsOn: Build
+  jobs:
+  - job: DeployARM
+    displayName: 'Deploy ARM Template'
+    steps:
+    - checkout: self
+
+    - task: AzureResourceManagerTemplateDeployment@3
+      displayName: 'Deploy ARM Template'
+      inputs:
+        deploymentScope: 'ResourceGroup'
+        azureResourceManagerConnection: '$(azureServiceConnection)'
+        subscriptionId: '$(AZURE_SUBSCRIPTION_ID)'
+        action: 'Create Or Update Resource Group'
+        resourceGroupName: '$(resourceGroupName)'
+        location: '$(location)'
+        templateLocation: 'Linked artifact'
+        csmFile: '$(templateFile)'
+        csmParametersFile: '$(parametersFile)'
+        deploymentMode: 'Incremental'
+        deploymentName: '$(deploymentName)'
+
+- stage: DeployFunctionCode
+  displayName: 'Deploy Function App Code'
+  dependsOn: DeployInfrastructure
+  jobs:
+  - job: DeployCode
+    displayName: 'Deploy Function Code'
+    steps:
+    - download: current
+      artifact: drop
+    - task: AzureFunctionApp@1
+      displayName: 'Deploy Function Code to Azure'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        appType: 'functionApp'
+        appName: '$(functionAppName)'
+        package: '$(Pipeline.Workspace)/drop/functionapp.zip'
+
+- stage: ConfigureAppSettings
+  displayName: 'Configure Function App Settings'
+  dependsOn: DeployFunctionCode
+  jobs:
+  - job: AppSettings
+    displayName: 'Set App Settings'
+    steps:
+    - task: AzureAppServiceSettings@1
+      displayName: 'Configure Application Settings'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        appName: '$(functionAppName)'
+        resourceGroupName: '$(resourceGroupName)'
+        appSettings: |
+          [
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": "1"
+            }
+          ]
+- stage: ExposeViaAPIM
+  displayName: 'Expose Function App via APIM'
+  dependsOn: ConfigureAppSettings
+  jobs:
+  - job: AddAPI
+    displayName: 'Add Function App to APIM'
+    steps:
+    - checkout: self
+
+    # 1. Ensure Product Exists (robust check with try/catch)
+    - task: AzureCLI@2
+      displayName: 'Ensure Product Exists'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          try {
+            $product = az apim product show `
+              --resource-group "$(resourceGroupName)" `
+              --service-name "$(apiManagementName)" `
+              --product-id "$(productToAssociate)" `
+              --only-show-errors | ConvertFrom-Json
+            Write-Host "Product '$(productToAssociate)' already exists."
+          } catch {
+            Write-Host "Product '$(productToAssociate)' does not exist. Creating..."
+            az apim product create `
+              --resource-group "$(resourceGroupName)" `
+              --service-name "$(apiManagementName)" `
+              --product-id "$(productToAssociate)" `
+              --product-name "$(productToAssociate)" `
+              --approval-required false `
+              --subscriptions-limit 1 `
+              --state published
+          }
+
+    # 1b. List Products for Debugging
+    - task: AzureCLI@2
+      displayName: 'List Products for Debugging'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az apim product list `
+            --resource-group "$(resourceGroupName)" `
+            --service-name "$(apiManagementName)"
+
+    # 2. Create or Update API
+    - task: AzureCLI@2
+      displayName: 'Create or Update API in APIM'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $apiExists = az apim api show `
+            --resource-group "$(resourceGroupName)" `
+            --service-name "$(apiManagementName)" `
+            --api-id "$(apiId)" `
+            --only-show-errors | Out-Null
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "API '$(apiId)' already exists. Updating..."
+            az apim api update `
+              --resource-group "$(resourceGroupName)" `
+              --service-name "$(apiManagementName)" `
+              --api-id "$(apiId)" `
+              --path "$(apiPath)" `
+              --display-name "$(apiDisplayName)" `
+              --protocols $(apiProtocols) `
+              --service-url "$(apiServiceUrl)"
+          } else {
+            Write-Host "Creating API '$(apiId)'..."
+            az apim api create `
+              --resource-group "$(resourceGroupName)" `
+              --service-name "$(apiManagementName)" `
+              --api-id "$(apiId)" `
+              --path "$(apiPath)" `
+              --display-name "$(apiDisplayName)" `
+              --protocols $(apiProtocols) `
+              --service-url "$(apiServiceUrl)"
+          }
+
+    # 3. Create or Update Operation
+    - task: AzureCLI@2
+      displayName: 'Create or Update Operation in APIM'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $operationExists = az apim api operation show `
+            --resource-group "$(resourceGroupName)" `
+            --service-name "$(apiManagementName)" `
+            --api-id "$(apiId)" `
+            --operation-id "$(operationId)" `
+            --only-show-errors | Out-Null
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Operation '$(operationId)' already exists. Updating..."
+            az apim api operation update `
+              --resource-group "$(resourceGroupName)" `
+              --service-name "$(apiManagementName)" `
+              --api-id "$(apiId)" `
+              --operation-id "$(operationId)" `
+              --display-name "$(operationDisplayName)" `
+              --method $(operationMethod) `
+              --url-template "$(operationUrlTemplate)"
+          } else {
+            Write-Host "Creating operation '$(operationId)'..."
+            az apim api operation create `
+              --resource-group "$(resourceGroupName)" `
+              --service-name "$(apiManagementName)" `
+              --api-id "$(apiId)" `
+              --operation-id "$(operationId)" `
+              --display-name "$(operationDisplayName)" `
+              --method $(operationMethod) `
+              --url-template "$(operationUrlTemplate)" `
+              --description "Sample operation"
+          }
+
+    # 4. Associate API with Product (with retry and validation)
+    - task: AzureCLI@2
+      displayName: 'Associate API with Product (with retry)'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $maxRetries = 5
+          $retryDelay = 10
+          $retryCount = 0
+          $productFound = $false
+
+          while (-not $productFound -and $retryCount -lt $maxRetries) {
+              try {
+                  $product = az apim product show `
+                      --resource-group "$(resourceGroupName)" `
+                      --service-name "$(apiManagementName)" `
+                      --product-id "$(productToAssociate)" `
+                      --only-show-errors | ConvertFrom-Json
+
+                  if ($product -and $LASTEXITCODE -eq 0) {
+                      Write-Host "Product '$(productToAssociate)' found. Proceeding with association..."
+                      $productFound = $true
+                  }
+              } catch {
+                  Write-Host "Attempt $($retryCount + 1): Product '$(productToAssociate)' not found. Retrying in $retryDelay seconds..."
+                  Start-Sleep -Seconds $retryDelay
+                  $retryCount++
+              }
+          }
+
+          if ($productFound) {
+              Write-Host "Associating API '$(apiId)' with Product '$(productToAssociate)'..."
+              az apim product api add `
+                  --resource-group "$(resourceGroupName)" `
+                  --service-name "$(apiManagementName)" `
+                  --product-id "$(productToAssociate)" `
+                  --api-id "$(apiId)"
+          } else {
+              Write-Host "ERROR: Product '$(productToAssociate)' not found after $maxRetries attempts. Skipping association."
+              exit 1
+          }
