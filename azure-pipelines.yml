@@ -28,7 +28,8 @@ variables:
   operationDisplayName: 'Greet'
   operationMethod: 'GET'
   operationUrlTemplate: '/greet'
-  productToAssociate: 'Sample Product' # or your custom product
+  productToAssociate: 'sample-product'  # Fixed: no spaces to avoid Azure CLI parsing issues
+  productDisplayName: 'Sample Product'  # Display name with spaces
   # apimSubscriptionKey: '...' # Store securely in Azure DevOps if you want to use health check
 
 stages:
@@ -149,7 +150,7 @@ stages:
     steps:
     - checkout: self
 
-    # 1. Ensure Product Exists (robust check with try/catch)
+    # 1. Ensure Product Exists
     - task: AzureCLI@2
       displayName: 'Ensure Product Exists'
       inputs:
@@ -157,36 +158,22 @@ stages:
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          try {
-            $product = az apim product show `
-              --resource-group "$(resourceGroupName)" `
-              --service-name "$(apiManagementName)" `
-              --product-id "$(productToAssociate)" `
-              --only-show-errors | ConvertFrom-Json
-            Write-Host "Product '$(productToAssociate)' already exists."
-          } catch {
-            Write-Host "Product '$(productToAssociate)' does not exist. Creating..."
-            az apim product create `
-              --resource-group "$(resourceGroupName)" `
-              --service-name "$(apiManagementName)" `
-              --product-id "$(productToAssociate)" `
-              --product-name "$(productToAssociate)" `
-              --approval-required false `
-              --subscriptions-limit 1 `
-              --state published
+          $productId = "$(productToAssociate)"
+          $productName = "$(productDisplayName)"
+          $resourceGroup = "$(resourceGroupName)"
+          $apimName = "$(apiManagementName)"
+          
+          Write-Host "Checking if product '$productId' exists..."
+          $exitCode = 0
+          az apim product show --resource-group $resourceGroup --service-name $apimName --product-id $productId --only-show-errors 2>$null
+          $exitCode = $LASTEXITCODE
+          
+          if ($exitCode -eq 0) {
+            Write-Host "Product '$productId' already exists."
+          } else {
+            Write-Host "Product '$productId' does not exist. Creating..."
+            az apim product create --resource-group $resourceGroup --service-name $apimName --product-id $productId --product-name $productName --approval-required false --subscriptions-limit 1 --state published
           }
-
-    # 1b. List Products for Debugging
-    - task: AzureCLI@2
-      displayName: 'List Products for Debugging'
-      inputs:
-        azureSubscription: '$(azureServiceConnection)'
-        scriptType: 'ps'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          az apim product list `
-            --resource-group "$(resourceGroupName)" `
-            --service-name "$(apiManagementName)"
 
     # 2. Create or Update API
     - task: AzureCLI@2
@@ -196,32 +183,21 @@ stages:
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          $apiExists = az apim api show `
-            --resource-group "$(resourceGroupName)" `
-            --service-name "$(apiManagementName)" `
-            --api-id "$(apiId)" `
-            --only-show-errors | Out-Null
-
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "API '$(apiId)' already exists. Updating..."
-            az apim api update `
-              --resource-group "$(resourceGroupName)" `
-              --service-name "$(apiManagementName)" `
-              --api-id "$(apiId)" `
-              --path "$(apiPath)" `
-              --display-name "$(apiDisplayName)" `
-              --protocols $(apiProtocols) `
-              --service-url "$(apiServiceUrl)"
+          $apiId = "$(apiId)"
+          $resourceGroup = "$(resourceGroupName)"
+          $apimName = "$(apiManagementName)"
+          
+          Write-Host "Checking if API '$apiId' exists..."
+          $exitCode = 0
+          az apim api show --resource-group $resourceGroup --service-name $apimName --api-id $apiId --only-show-errors 2>$null
+          $exitCode = $LASTEXITCODE
+          
+          if ($exitCode -eq 0) {
+            Write-Host "API '$apiId' already exists. Updating..."
+            az apim api update --resource-group $resourceGroup --service-name $apimName --api-id $apiId --path "$(apiPath)" --display-name "$(apiDisplayName)" --protocols $(apiProtocols) --service-url "$(apiServiceUrl)"
           } else {
-            Write-Host "Creating API '$(apiId)'..."
-            az apim api create `
-              --resource-group "$(resourceGroupName)" `
-              --service-name "$(apiManagementName)" `
-              --api-id "$(apiId)" `
-              --path "$(apiPath)" `
-              --display-name "$(apiDisplayName)" `
-              --protocols $(apiProtocols) `
-              --service-url "$(apiServiceUrl)"
+            Write-Host "Creating API '$apiId'..."
+            az apim api create --resource-group $resourceGroup --service-name $apimName --api-id $apiId --path "$(apiPath)" --display-name "$(apiDisplayName)" --protocols $(apiProtocols) --service-url "$(apiServiceUrl)"
           }
 
     # 3. Create or Update Operation
@@ -232,76 +208,36 @@ stages:
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          $operationExists = az apim api operation show `
-            --resource-group "$(resourceGroupName)" `
-            --service-name "$(apiManagementName)" `
-            --api-id "$(apiId)" `
-            --operation-id "$(operationId)" `
-            --only-show-errors | Out-Null
-
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Operation '$(operationId)' already exists. Updating..."
-            az apim api operation update `
-              --resource-group "$(resourceGroupName)" `
-              --service-name "$(apiManagementName)" `
-              --api-id "$(apiId)" `
-              --operation-id "$(operationId)" `
-              --display-name "$(operationDisplayName)" `
-              --method $(operationMethod) `
-              --url-template "$(operationUrlTemplate)"
+          $apiId = "$(apiId)"
+          $operationId = "$(operationId)"
+          $resourceGroup = "$(resourceGroupName)"
+          $apimName = "$(apiManagementName)"
+          
+          Write-Host "Checking if operation '$operationId' exists..."
+          $exitCode = 0
+          az apim api operation show --resource-group $resourceGroup --service-name $apimName --api-id $apiId --operation-id $operationId --only-show-errors 2>$null
+          $exitCode = $LASTEXITCODE
+          
+          if ($exitCode -eq 0) {
+            Write-Host "Operation '$operationId' already exists. Updating..."
+            az apim api operation update --resource-group $resourceGroup --service-name $apimName --api-id $apiId --operation-id $operationId --display-name "$(operationDisplayName)" --method $(operationMethod) --url-template "$(operationUrlTemplate)"
           } else {
-            Write-Host "Creating operation '$(operationId)'..."
-            az apim api operation create `
-              --resource-group "$(resourceGroupName)" `
-              --service-name "$(apiManagementName)" `
-              --api-id "$(apiId)" `
-              --operation-id "$(operationId)" `
-              --display-name "$(operationDisplayName)" `
-              --method $(operationMethod) `
-              --url-template "$(operationUrlTemplate)" `
-              --description "Sample operation"
+            Write-Host "Creating operation '$operationId'..."
+            az apim api operation create --resource-group $resourceGroup --service-name $apimName --api-id $apiId --operation-id $operationId --display-name "$(operationDisplayName)" --method $(operationMethod) --url-template "$(operationUrlTemplate)" --description "Sample operation"
           }
 
-    # 4. Associate API with Product (with retry and validation)
+    # 4. Associate API with Product
     - task: AzureCLI@2
-      displayName: 'Associate API with Product (with retry)'
+      displayName: 'Associate API with Product'
       inputs:
         azureSubscription: '$(azureServiceConnection)'
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          $maxRetries = 5
-          $retryDelay = 10
-          $retryCount = 0
-          $productFound = $false
-
-          while (-not $productFound -and $retryCount -lt $maxRetries) {
-              try {
-                  $product = az apim product show `
-                      --resource-group "$(resourceGroupName)" `
-                      --service-name "$(apiManagementName)" `
-                      --product-id "$(productToAssociate)" `
-                      --only-show-errors | ConvertFrom-Json
-
-                  if ($product -and $LASTEXITCODE -eq 0) {
-                      Write-Host "Product '$(productToAssociate)' found. Proceeding with association..."
-                      $productFound = $true
-                  }
-              } catch {
-                  Write-Host "Attempt $($retryCount + 1): Product '$(productToAssociate)' not found. Retrying in $retryDelay seconds..."
-                  Start-Sleep -Seconds $retryDelay
-                  $retryCount++
-              }
-          }
-
-          if ($productFound) {
-              Write-Host "Associating API '$(apiId)' with Product '$(productToAssociate)'..."
-              az apim product api add `
-                  --resource-group "$(resourceGroupName)" `
-                  --service-name "$(apiManagementName)" `
-                  --product-id "$(productToAssociate)" `
-                  --api-id "$(apiId)"
-          } else {
-              Write-Host "ERROR: Product '$(productToAssociate)' not found after $maxRetries attempts. Skipping association."
-              exit 1
-          }
+          $productId = "$(productToAssociate)"
+          $apiId = "$(apiId)"
+          $resourceGroup = "$(resourceGroupName)"
+          $apimName = "$(apiManagementName)"
+          
+          Write-Host "Associating API '$apiId' with Product '$productId'..."
+          az apim product api add --resource-group $resourceGroup --service-name $apimName --product-id $productId --api-id $apiId
