@@ -1,0 +1,213 @@
+checklist:
+  title: "CM Configuration Items"
+  description: "Checklist for CM10 through CM60"
+  items:
+    - id: "CM10"
+      name: "CM10"
+      checked: false
+      description: "Configuration Management Item 10"
+    - id: "CM11"
+      name: "CM11"
+      checked: false
+      description: "Configuration Management Item 11"
+    - id: "CM12"
+      name: "CM12"
+      checked: false
+      description: "Configuration Management Item 12"
+    - id: "CM13"
+      name: "CM13"
+      checked: false
+      description: "Configuration Management Item 13"
+    - id: "CM14"
+      name: "CM14"
+      checked: false
+      description: "Configuration Management Item 14"
+    - id: "CM15"
+      name: "CM15"
+      checked: false
+      description: "Configuration Management Item 15"
+    - id: "CM16"
+      name: "CM16"
+      checked: false
+      description: "Configuration Management Item 16"
+    - id: "CM17"
+      name: "CM17"
+      checked: false
+      description: "Configuration Management Item 17"
+    - id: "CM18"
+      name: "CM18"
+      checked: false
+      description: "Configuration Management Item 18"
+    - id: "CM19"
+      name: "CM19"
+      checked: false
+      description: "Configuration Management Item 19"
+    - id: "CM20"
+      name: "CM20"
+      checked: false
+      description: "Configuration Management Item 20"
+    - id: "CM21"
+      name: "CM21"
+      checked: false
+      description: "Configuration Management Item 21"
+    - id: "CM22"
+      name: "CM22"
+      checked: false
+      description: "Configuration Management Item 22"
+    - id: "CM23"
+      name: "CM23"
+      checked: false
+      description: "Configuration Management Item 23"
+    - id: "CM24"
+      name: "CM24"
+      checked: false
+      description: "Configuration Management Item 24"
+    - id: "CM25"
+      name: "CM25"
+      checked: false
+      description: "Configuration Management Item 25"
+    - id: "CM26"
+      name: "CM26"
+      checked: false
+      description: "Configuration Management Item 26"
+    - id: "CM27"
+      name: "CM27"
+      checked: false
+      description: "Configuration Management Item 27"
+    - id: "CM28"
+      name: "CM28"
+      checked: false
+      description: "Configuration Management Item 28"
+    - id: "CM29"
+      name: "CM29"
+      checked: false
+      description: "Configuration Management Item 29"
+    - id: "CM30"
+      name: "CM30"
+      checked: false
+      description: "Configuration Management Item 30"
+    - id: "CM31"
+      name: "CM31"
+      checked: false
+      description: "Configuration Management Item 31"
+    - id: "CM32"
+      name: "CM32"
+      checked: false
+      description: "Configuration Management Item 32"
+    - id: "CM33"
+      name: "CM33"
+      checked: false
+      description: "Configuration Management Item 33"
+    - id: "CM34"
+      name: "CM34"
+      checked: false
+      description: "Configuration Management Item 34"
+    - id: "CM35"
+      name: "CM35"
+      checked: false
+      description: "Configuration Management Item 35"
+    - id: "CM36"
+      name: "CM36"
+      checked: false
+      description: "Configuration Management Item 36"
+    - id: "CM37"
+      name: "CM37"
+      checked: false
+      description: "Configuration Management Item 37"
+    - id: "CM38"
+      name: "CM38"
+      checked: false
+      description: "Configuration Management Item 38"
+    - id: "CM39"
+      name: "CM39"
+      checked: false
+      description: "Configuration Management Item 39"
+    - id: "CM40"
+      name: "CM40"
+      checked: false
+      description: "Configuration Management Item 40"
+    - id: "CM41"
+      name: "CM41"
+      checked: false
+      description: "Configuration Management Item 41"
+    - id: "CM42"
+      name: "CM42"
+      checked: false
+      description: "Configuration Management Item 42"
+    - id: "CM43"
+      name: "CM43"
+      checked: false
+      description: "Configuration Management Item 43"
+    - id: "CM44"
+      name: "CM44"
+      checked: false
+      description: "Configuration Management Item 44"
+    - id: "CM45"
+      name: "CM45"
+      checked: false
+      description: "Configuration Management Item 45"
+    - id: "CM46"
+      name: "CM46"
+      checked: false
+      description: "Configuration Management Item 46"
+    - id: "CM47"
+      name: "CM47"
+      checked: false
+      description: "Configuration Management Item 47"
+    - id: "CM48"
+      name: "CM48"
+      checked: false
+      description: "Configuration Management Item 48"
+    - id: "CM49"
+      name: "CM49"
+      checked: false
+      description: "Configuration Management Item 49"
+    - id: "CM50"
+      name: "CM50"
+      checked: false
+      description: "Configuration Management Item 50"
+    - id: "CM51"
+      name: "CM51"
+      checked: false
+      description: "Configuration Management Item 51"
+    - id: "CM52"
+      name: "CM52"
+      checked: false
+      description: "Configuration Management Item 52"
+    - id: "CM53"
+      name: "CM53"
+      checked: false
+      description: "Configuration Management Item 53"
+    - id: "CM54"
+      name: "CM54"
+      checked: false
+      description: "Configuration Management Item 54"
+    - id: "CM55"
+      name: "CM55"
+      checked: false
+      description: "Configuration Management Item 55"
+    - id: "CM56"
+      name: "CM56"
+      checked: false
+      description: "Configuration Management Item 56"
+    - id: "CM57"
+      name: "CM57"
+      checked: false
+      description: "Configuration Management Item 57"
+    - id: "CM58"
+      name: "CM58"
+      checked: false
+      description: "Configuration Management Item 58"
+    - id: "CM59"
+      name: "CM59"
+      checked: false
+      description: "Configuration Management Item 59"
+    - id: "CM60"
+      name: "CM60"
+      checked: false
+      description: "Configuration Management Item 60"
+
+settings:
+  allow_multiple_selection: true
+  show_progress: true
+  save_state: true
