@@ -1,0 +1,136 @@
+parameters:
+- name: resourceGroupName
+  type: string
+  displayName: 'Resource Group Name'
+  
+- name: subscriptionId
+  type: string
+  displayName: 'Azure Subscription ID'
+  
+- name: templateFile
+  type: string
+  displayName: 'ARM Template File Path'
+  default: 'azuredeploy.json'
+  
+- name: parametersFile
+  type: string
+  displayName: 'ARM Parameters File Path'
+  default: 'azuredeployparameters.json'
+  
+- name: location
+  type: string
+  displayName: 'Azure Region'
+  default: 'East US'
+
+steps:
+- task: AzureCLI@2
+  displayName: 'Validate ARM Template'
+  inputs:
+    azureSubscription: 'Azure Service Connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Validating ARM template..."
+      az deployment group validate \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --template-file ${{ parameters.templateFile }} \
+        --parameters @${{ parameters.parametersFile }}
+      
+      if [ $? -eq 0 ]; then
+        echo "✅ ARM template validation successful"
+      else
+        echo "❌ ARM template validation failed"
+        exit 1
+      fi
+
+- task: AzureCLI@2
+  displayName: 'What-If Analysis'
+  inputs:
+    azureSubscription: 'Azure Service Connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Running What-If analysis..."
+      az deployment group what-if \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --template-file ${{ parameters.templateFile }} \
+        --parameters @${{ parameters.parametersFile }}
+
+- task: AzureCLI@2
+  displayName: 'Check Resource Group Exists'
+  inputs:
+    azureSubscription: 'Azure Service Connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Checking if resource group exists..."
+      if az group exists --name ${{ parameters.resourceGroupName }}; then
+        echo "✅ Resource group '${{ parameters.resourceGroupName }}' exists"
+      else
+        echo "⚠️ Resource group '${{ parameters.resourceGroupName }}' does not exist"
+        echo "Creating resource group..."
+        az group create \
+          --name ${{ parameters.resourceGroupName }} \
+          --location "${{ parameters.location }}"
+        echo "✅ Resource group created successfully"
+      fi
+
+- task: AzureCLI@2
+  displayName: 'Export Existing Resources'
+  inputs:
+    azureSubscription: 'Azure Service Connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Exporting existing resources from resource group..."
+      az group export \
+        --name ${{ parameters.resourceGroupName }} \
+        --output json > exported-resources.json
+      
+      if [ -f exported-resources.json ]; then
+        echo "✅ Resources exported successfully"
+        echo "Exported resources:"
+        cat exported-resources.json | jq '.resources[].type' || echo "jq not available, showing raw export"
+      else
+        echo "⚠️ No resources found or export failed"
+      fi
+
+- task: AzureCLI@2
+  displayName: 'Security and Compliance Checks'
+  inputs:
+    azureSubscription: 'Azure Service Connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Running security and compliance checks..."
+      
+      # Check for required tags
+      echo "Checking for required tags in template..."
+      if grep -q '"tags"' ${{ parameters.templateFile }}; then
+        echo "✅ Template includes tags"
+      else
+        echo "⚠️ Template missing tags - consider adding environment, owner, and cost-center tags"
+      fi
+      
+      # Check for diagnostic settings
+      echo "Checking for diagnostic settings..."
+      if grep -q '"diagnosticSettings"' ${{ parameters.templateFile }}; then
+        echo "✅ Template includes diagnostic settings"
+      else
+        echo "⚠️ Consider adding diagnostic settings for monitoring"
+      fi
+      
+      # Check for backup configuration
+      echo "Checking for backup configuration..."
+      if grep -q '"backup"' ${{ parameters.templateFile }}; then
+        echo "✅ Template includes backup configuration"
+      else
+        echo "ℹ️ No backup configuration found - verify if needed"
+      fi
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Exported Resources'
+  inputs:
+    pathToPublish: 'exported-resources.json'
+    artifactName: 'exported-resources'
+  condition: succeededOrFailed()
