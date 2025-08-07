@@ -1,0 +1,38 @@
+parameters:
+- name: solutionName
+  type: string
+- name: artifactName
+  type: string
+- name: environmentToDeploy
+  type: string
+
+steps:
+- task: DownloadBuildArtifacts@0
+  displayName: 'Download Artifact: ${{ parameters.artifactName }}'
+  inputs:
+    buildType: 'current'
+    downloadType: 'single'
+    artifactName: '${{ parameters.artifactName }}'
+    downloadPath: '$(System.ArtifactsDirectory)'
+
+- task: PowerPlatformImportSolution@2
+  displayName: 'Import Solution: ${{ parameters.solutionName }}'
+  inputs:
+    authenticationType: 'PowerPlatformSPN'
+    PowerPlatformSPN: '$(PowerPlatformSPN_${{ parameters.environmentToDeploy }})'
+    SolutionInputFile: '$(System.ArtifactsDirectory)/${{ parameters.artifactName }}/${{ parameters.solutionName }}_*_managed.zip'
+    AsyncOperation: true
+    MaxAsyncWaitTime: '60'
+    PublishWorkflows: true
+    ConvertToManaged: true
+    OverwriteUnmanagedCustomizations: false
+    SkipProductUpdateDependencies: false
+    HoldingSolution: false
+  continueOnError: false
+
+- task: PowerPlatformPublishCustomizations@2
+  displayName: 'Publish Customizations: ${{ parameters.environmentToDeploy }}'
+  inputs:
+    authenticationType: 'PowerPlatformSPN'
+    PowerPlatformSPN: '$(PowerPlatformSPN_${{ parameters.environmentToDeploy }})'
+  continueOnError: false
