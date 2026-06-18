@@ -3,6 +3,7 @@ name: CI Pipeline
 on:
   push:
     branches: [ main ]
+  pull_request:
 
 jobs:
   build:
@@ -20,10 +21,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Run tests
+        run: npm test
+
       - name: Print secret
         run: echo "Secret is $MY_SECRET"
         env:
           MY_SECRET: ${{ secrets.MY_SECRET }}
 
-      - name: Run tests
-        run: npm test
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploying...
+        run: echo "Deploying build to dev environment"
+
