@@ -1,0 +1,124 @@
+trigger:
+  branches:
+    include:
+    - main
+    - develop
+    - feature/*
+  paths:
+    include:
+    - azuredeploy.json
+    - azuredeployparameters.json
+    - pipeline/*
+
+pr:
+  branches:
+    include:
+    - main
+    - develop
+  paths:
+    include:
+    - azuredeploy.json
+    - azuredeployparameters.json
+    - pipeline/*
+
+variables:
+  - name: resourceGroupName
+    value: 'rg-tds-$(Build.SourceBranchName)-$(Build.BuildId)'
+  - name: location
+    value: 'East US'
+  - name: subscriptionId
+    value: 'your-subscription-id-here'
+  - name: serviceConnection
+    value: 'Azure Service Connection'
+
+stages:
+- stage: Validate
+  displayName: 'Validate and Check ARM Templates'
+  jobs:
+  - job: ValidateTemplate
+    displayName: 'Validate ARM Template'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+      displayName: 'Checkout Repository'
+    
+    - template: export-and-check-template.yml
+      parameters:
+        resourceGroupName: $(resourceGroupName)
+        subscriptionId: $(subscriptionId)
+        templateFile: 'azuredeploy.json'
+        parametersFile: 'azuredeployparameters.json'
+        location: $(location)
+
+- stage: Deploy
+  displayName: 'Deploy ARM Template'
+  dependsOn: Validate
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - job: DeployTemplate
+    displayName: 'Deploy to Azure'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+      displayName: 'Checkout Repository'
+    
+    - task: AzureCLI@2
+      displayName: 'Deploy ARM Template'
+      inputs:
+        azureSubscription: $(serviceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Deploying ARM template to Azure..."
+          az deployment group create \
+            --resource-group $(resourceGroupName) \
+            --template-file azuredeploy.json \
+            --parameters @azuredeployparameters.json \
+            --verbose
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Deployment successful"
+          else
+            echo "❌ Deployment failed"
+            exit 1
+          fi
+    
+    - task: AzureCLI@2
+      displayName: 'Post-Deployment Verification'
+      inputs:
+        azureSubscription: $(serviceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Running post-deployment verification..."
+          
+          # List deployed resources
+          echo "Deployed resources:"
+          az resource list --resource-group $(resourceGroupName) --output table
+          
+          # Check resource health
+          echo "Checking resource health..."
+          az resource list --resource-group $(resourceGroupName) --query "[].{Name:name, Type:type, ProvisioningState:properties.provisioningState}" --output table
+
+- stage: Cleanup
+  displayName: 'Cleanup Resources (Non-Production)'
+  dependsOn: Deploy
+  condition: and(succeeded(), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - job: CleanupResources
+    displayName: 'Cleanup Test Resources'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Delete Test Resource Group'
+      inputs:
+        azureSubscription: $(serviceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Cleaning up test resource group: $(resourceGroupName)"
+          az group delete --name $(resourceGroupName) --yes --no-wait
+          echo "✅ Cleanup initiated for resource group: $(resourceGroupName)"
