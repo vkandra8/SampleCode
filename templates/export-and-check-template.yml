@@ -1,0 +1,46 @@
+parameters:
+- name: solutionName
+  type: string
+- name: solutionVersion
+  type: string
+- name: artifactName
+  type: string
+
+steps:
+- task: PowerPlatformExportSolution@2
+  displayName: 'Export Solution: ${{ parameters.solutionName }}'
+  inputs:
+    authenticationType: 'PowerPlatformSPN'
+    PowerPlatformSPN: '$(PowerPlatformSPN)'
+    SolutionName: '${{ parameters.solutionName }}'
+    SolutionOutputFile: '$(Build.ArtifactStagingDirectory)/${{ parameters.solutionName }}_${{ parameters.solutionVersion }}_managed.zip'
+    Managed: true
+    MaxAsyncWaitTime: '60'
+  continueOnError: false
+
+- task: PowerPlatformExportSolution@2
+  displayName: 'Export Unmanaged Solution: ${{ parameters.solutionName }}'
+  inputs:
+    authenticationType: 'PowerPlatformSPN'
+    PowerPlatformSPN: '$(PowerPlatformSPN)'
+    SolutionName: '${{ parameters.solutionName }}'
+    SolutionOutputFile: '$(Build.ArtifactStagingDirectory)/${{ parameters.solutionName }}_${{ parameters.solutionVersion }}_unmanaged.zip'
+    Managed: false
+    MaxAsyncWaitTime: '60'
+  continueOnError: false
+
+- task: PowerPlatformChecker@2
+  displayName: 'Solution Checker: ${{ parameters.solutionName }}'
+  inputs:
+    authenticationType: 'PowerPlatformSPN'
+    PowerPlatformSPN: '$(PowerPlatformSPN)'
+    FilesToAnalyze: '$(Build.ArtifactStagingDirectory)/${{ parameters.solutionName }}_${{ parameters.solutionVersion }}_unmanaged.zip'
+    RuleSet: '0ad12346-e108-40b8-a956-9a8f95ea18c9'
+  continueOnError: true
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact: ${{ parameters.artifactName }}'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: '${{ parameters.artifactName }}'
+    publishLocation: 'Container'

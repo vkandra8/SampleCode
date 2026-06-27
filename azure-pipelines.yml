@@ -1,0 +1,85 @@
+parameters:
+- name: solutionsToProcess
+  displayName: 'Select solutions to process'
+  type: string
+  default: 'CM10,CM20,CM30,CM40,CM50,CM60'
+  values:
+  - CM10,CM20,CM30,CM40,CM50,CM60
+  - CM10
+  - CM20
+  - CM30
+  - CM40
+  - CM50
+  - CM60
+
+- name: environmentToDeploy
+  displayName: 'Target Environment'
+  type: string
+  default: 'development'
+  values:
+  - development
+  - staging
+  - production
+  
+trigger:
+  branches:
+    include:
+      - main
+      
+pool:
+  vmImage: 'windows-latest'
+  
+variables:
+  - group: multiple solutions update
+
+stages:
+- stage: Approval
+  displayName: 'Pre-Export Approval'
+  jobs:
+  - deployment: PreExportApproval
+    displayName: 'Approval for Export'
+    environment: PreExportApproval
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: echo "Pre-export approval granted. Proceeding to export solutions."
+            displayName: 'Pre-Export Approval'
+
+- stage: ExportAndCheck
+  displayName: 'Export & Check Solutions'
+  dependsOn: Approval
+  jobs:
+  - job: ExportAndCheckSolutions
+    displayName: 'Export & Check Solutions'
+    steps:
+      - task: PowerPlatformToolInstaller@2
+        displayName: 'Install Power Platform Tools'
+      
+      - ${{ each solution in split(parameters.solutionsToProcess, ',') }}:
+        - template: templates/export-and-check-template.yml
+          parameters:
+            solutionName: ${{ variables[format('solutionName_{0}', solution)] }}
+            solutionVersion: ${{ variables[format('version_{0}', solution)] }}
+            artifactName: ${{ variables[format('artifactName_{0}', solution)] }}
+
+- stage: Import
+  displayName: 'Import Solutions'
+  dependsOn: ExportAndCheck
+  jobs:
+  - deployment: ImportSolutions
+    displayName: 'Import Solutions'
+    environment: ${{ parameters.environmentToDeploy }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - task: PowerPlatformToolInstaller@2
+              displayName: 'Install Power Platform Tools'
+            
+            - ${{ each solution in split(parameters.solutionsToProcess, ',') }}:
+              - template: templates/import-template.yml
+                parameters:
+                  solutionName: ${{ variables[format('solutionName_{0}', solution)] }}
+                  artifactName: ${{ variables[format('artifactName_{0}', solution)] }}
+                  environmentToDeploy: ${{ parameters.environmentToDeploy }}
